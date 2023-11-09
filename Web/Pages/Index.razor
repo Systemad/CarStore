@@ -1,0 +1,375 @@
+﻿@page "/"
+@using Business
+@using Common.Classes
+@using Common.Enums
+@using Common.Interfaces
+
+@inject BookingProcessor BookingProcessor
+
+<PageTitle>ITHS Dan</PageTitle>
+
+<ErrorBoundary>
+    <div class="container-md bg-base-300 p-2 rounded">
+        <h2>Vehicles</h2>
+
+        @if (_errorRenting)
+        {
+            <div class="alert alert-danger" role="alert">
+                Error renting car!
+            </div>
+        }
+
+        @if (_errorCreatingVehicle)
+        {
+            <div class="alert alert-danger" role="alert">
+                Could not add vehicle!
+            </div>
+        }
+        
+        <h3>Select a customer</h3>
+        <select class="form-select mb-3" aria-label="Select a customer to rent vehicle to" @bind="@_selectedCustomer">
+            <option value="0">none</option>
+            @foreach (var customer in BookingProcessor.GetCustomers())
+            {
+                <option value="@customer.Id">@customer.Name @customer.Lastname (@customer.SSN)</option>
+            }
+        </select>
+        <table class="table">
+            <thead>
+            <tr>
+                <th scope="col">REG NO</th>
+                <th scope="col">Manufacturer</th>
+                <th scope="col">Vehicle type</th>
+                <th scope="col">Odometer</th>
+                <th scope="col">EUR/KM</th>
+                <th scope="col">EUR/Day</th>
+                <th scope="col">Status</th>
+                <th scope="col">Action</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>
+                    <input type="text" class="form-control" id="regnoInput" aria-describedby="regnoHelp" @bind="@VehicleModel.RegNoInput" disabled="@_processing">
+                </td>
+                <td>
+                    <input type="text" class="form-control" id="manufacturerInput" aria-describedby="manufacturerInputHelp" @bind="@VehicleModel.ManufacturerInput" disabled="@_processing">
+                </td>
+                <td>
+                    <select class="form-select" aria-label="Select a vehicle type" @bind="@VehicleModel.VehicleTypeSelected" disabled="@_processing">
+                        <option value="0">none</option>
+                        @foreach (var vehicleType in BookingProcessor.VehicleTypeNames)
+                        {
+                            <option value="@vehicleType">@vehicleType</option>
+                        }
+                    </select>
+                </td>
+                <td>
+                    <input type="text" class="form-control" id="odometerInput" aria-describedby="odometerInputHelp" @bind="@VehicleModel.OdometerInput" disabled="@_processing">
+                </td>
+                <td>
+                    <input type="text" class="form-control" id="costPerKmInput" aria-describedby="costPerKmInputHelp" @bind="@VehicleModel.CostPerKmInput" disabled="@_processing">
+                </td>
+                <td>
+                    <input type="text" class="form-control" id="costPerDayInput" aria-describedby="euroPerDayInputHelp" @bind="@VehicleModel.CostPerDayInput" disabled="@_processing">
+                </td>
+
+                <td>
+                    @if (_processing)
+                    {
+                        <span class="badge rounded-pill text-bg-warning">Processing</span>
+                    }
+                    else
+                    {
+                        <span class="badge rounded-pill text-bg-warning"></span>
+                    }
+                </td>
+                <td>
+                    <button type="button" class="btn btn-success" @onclick="AddVehicle" disabled="@_processing">Add</button>
+                </td>
+            </tr>
+
+            @foreach (Vehicle vehicle in BookingProcessor.GetVehicles())
+            {
+                <tr>
+                    <td>@vehicle.RegNo</td>
+                    <td>@vehicle.Manufacturer</td>
+                    <td>@vehicle.VehicleType</td>
+                    <td>@vehicle.Odometer</td>
+                    <td>@vehicle.CostPerKm</td>
+                    <td>@vehicle.CostPerDay</td>
+                    @if (vehicle.VehicleStatus == VehicleStatus.Available)
+                    {
+                        <td>
+                            <span class="badge text-bg-success">
+                                @vehicle.VehicleStatus
+                            </span>
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-primary" disabled="@_processing" @onclick="() => RentVehicle(vehicle)">Rent</button>
+                        </td>
+                    }
+                    else
+                    {
+                        <td>
+                            <span class="badge text-bg-danger">
+                                @vehicle.VehicleStatus
+                            </span>
+                        </td>
+                        <td>
+                            <div class="d-flex flex-row mb-3">
+                                <div class="p-2">
+                                    <input type="text" class="form-control" id="ReturnVehicleDistance" aria-describedby="ReturnVehicleDistanceHelp" placeholder="Distance" @bind="@_returnVehicleDistance">
+                                </div>
+                                <div class="p-2">
+                                    <button type="button" class="btn btn-warning" disabled="@_processing" @onclick="() => ReturnVehicle(vehicle)">Return</button>
+                                </div>
+                            </div>
+                        </td>
+                    }
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="container-md bg-base-300 p-2 mt-3 rounded">
+        <h2>Bookings</h2>
+        <table class="table">
+            <thead>
+            <tr>
+                <th scope="col">REG NO</th>
+                <th scope="col">Customer</th>
+                <th scope="col">KM Rented</th>
+                <th scope="col">KM Returned</th>
+                <th scope="col">Rented Date</th>
+                <th scope="col">Returned Date</th>
+                <th scope="col">Cost</th>
+                <th scope="col">Status</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (IBooking booking in BookingProcessor.GetBookings())
+            {
+                <tr>
+                    <td>@booking.Vehicle.RegNo</td>
+                    <td>@booking.Customer.Name @booking.Customer.Lastname</td>
+                    <td>@booking.KmRented</td>
+                    @if (booking.Status == BookingStatus.Open)
+                    {
+                        <td>in use</td>
+                    }
+                    else
+                    {
+                        <td>@booking.KmReturned</td>
+
+                    }
+                    <td>@booking.DateRented</td>
+                    @if (booking.Status == BookingStatus.Open)
+                    {
+                        <td>in use</td>
+                        <td>in use</td>
+                    }
+                    else
+                    {
+                        <td>@booking.DateReturned</td>
+                        <td>@booking.Cost</td>
+                    }
+                    @if (booking.Status == BookingStatus.Open)
+                    {
+                        <td>
+                            <span class="badge text-bg-danger">Open</span>
+
+                        </td>
+                    }
+                    else
+                    {
+                        <td>
+                            <span class="badge text-bg-success">Closed</span>
+                        </td>
+                    }
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="container-md bg-base-300 p-2 mt-3 rounded">
+        <h2>Customers</h2>
+
+        @if (_errorCreatingCustomer)
+        {
+            <div class="alert alert-danger" role="alert">
+                Error adding customer!
+            </div>
+        }
+        <table class="table">
+            <thead>
+            <tr>
+                <th scope="col">SSN</th>
+                <th scope="col">Name</th>
+                <th scope="col">Lastname</th>
+                <th scope="col">Action</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>
+                    <input type="text" class="form-control" id="customerssn" aria-describedby="customerssnHelp" @bind="@InputModel.CustomerSsnInput">
+                </td>
+                <td>
+                    <input type="text" class="form-control" id="customerfn" aria-describedby="customerfnHelp" @bind="@InputModel.CustomerFirstnameInput">
+                </td>
+                <td>
+                    <input type="text" class="form-control" id="customerln" aria-describedby="customerlnHelp" @bind="@InputModel.CustomerLastnameInput">
+                </td>
+                <td>
+                    <button type="button" class="btn btn-primary" @onclick="AddCustomer">Add</button>
+                </td>
+            </tr>
+            @foreach (Customer customer in BookingProcessor.GetCustomers())
+            {
+                <tr>
+                    <td>@customer.SSN</td>
+                    <td>@customer.Name</td>
+                    <td>@customer.Lastname</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</ErrorBoundary>
+
+@code {
+
+    bool _processing = false;
+    bool _errorRenting = false;
+    bool _errorCreatingCustomer = false;
+    bool _errorCreatingVehicle = false;
+
+    int? _selectedCustomer;
+    double? _returnVehicleDistance;
+
+    private VehicleInputModel? VehicleModel { get; set; } = new();
+
+    public class VehicleInputModel
+    {
+        public string? RegNoInput { get; set; }
+        public string? ManufacturerInput { get; set; }
+        public int? OdometerInput { get; set; }
+        public double? CostPerKmInput { get; set; }
+        public double? CostPerDayInput { get; set; }
+        public string? VehicleTypeSelected { get; set; }
+    }
+
+    private CustomerInputModel? InputModel { get; set; } = new();
+
+    public class CustomerInputModel
+    {
+        public string? CustomerSsnInput { get; set; }
+        public string? CustomerFirstnameInput { get; set; }
+        public string? CustomerLastnameInput { get; set; }
+    }
+
+    private void ReturnVehicle(Vehicle vehicle)
+    {
+        if (_returnVehicleDistance is not null)
+        {
+            try
+            {
+                BookingProcessor.ReturnVehicle(vehicle.Id, _returnVehicleDistance.Value);
+                _returnVehicleDistance = 0;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
+        }
+    }
+
+    private async Task RentVehicle(Vehicle vehicle)
+    {
+        if (_selectedCustomer is null)
+        {
+            _errorRenting = true;
+        }
+        else
+        {
+            _processing = true;
+            try
+            {
+                await BookingProcessor.RentVehicle(vehicle.Id, _selectedCustomer.Value);
+                _processing = false;
+                _errorRenting = false;
+                _returnVehicleDistance = 0;
+            }
+            catch (Exception e)
+            {
+                _errorRenting = true;
+                _processing = false;
+                throw;
+            }
+        }
+    }
+
+    private void AddVehicle()
+    {
+        if (VehicleModel.RegNoInput != null && VehicleModel.ManufacturerInput != null && VehicleModel.OdometerInput != null &&
+            VehicleModel.CostPerKmInput != null && VehicleModel.CostPerDayInput != null && VehicleModel.VehicleTypeSelected != null)
+        {
+            {
+                var type = BookingProcessor.GetVehicleType(VehicleModel.VehicleTypeSelected);
+                BookingProcessor.AddVehicle(type,
+                    VehicleModel.ManufacturerInput,
+                    VehicleModel.RegNoInput,
+                    VehicleModel.OdometerInput.Value,
+                    VehicleModel.CostPerKmInput.Value,
+                    VehicleModel.CostPerDayInput.Value);
+                _errorCreatingVehicle = false;
+                ResetVehicleInputField();
+            }
+        }
+        else
+        {
+            _errorCreatingVehicle = true;
+        }
+    }
+
+    private void AddCustomer()
+    {
+        if (string.IsNullOrWhiteSpace(InputModel.CustomerSsnInput) ||
+            string.IsNullOrWhiteSpace(InputModel.CustomerFirstnameInput) ||
+            string.IsNullOrWhiteSpace(InputModel.CustomerLastnameInput))
+        {
+            _errorCreatingCustomer = true;
+        }
+        else
+        {
+            try
+            {
+                BookingProcessor.AddCustomer(InputModel.CustomerSsnInput, InputModel.CustomerFirstnameInput, InputModel.CustomerLastnameInput);
+                InputModel.CustomerSsnInput = string.Empty;
+                InputModel.CustomerFirstnameInput = string.Empty;
+                InputModel.CustomerLastnameInput = string.Empty;
+                _errorCreatingCustomer = false;
+            }
+            catch (Exception e)
+            {
+                _errorCreatingCustomer = true;
+                throw;
+            }
+        }
+    }
+
+    void ResetVehicleInputField()
+    {
+        VehicleModel.RegNoInput = string.Empty;
+        VehicleModel.ManufacturerInput = string.Empty;
+        VehicleModel.OdometerInput = 0;
+        VehicleModel.CostPerKmInput = 0;
+        VehicleModel.CostPerDayInput = 0;
+        VehicleModel.VehicleTypeSelected = string.Empty;
+    }
+
+}
